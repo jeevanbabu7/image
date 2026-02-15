@@ -11,10 +11,13 @@ const app = express();
 ensureUploadsDir();
 
 app.use(
-	cors({
-		origin: "*"
-	})
+  cors({
+    origin: "*",
+    methods: "*",
+    allowedHeaders: "*"
+  })
 );
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", apiLimiter, routes);
