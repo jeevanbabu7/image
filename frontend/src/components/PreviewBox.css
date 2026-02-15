@@ -1,0 +1,5 @@
+.preview {
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
