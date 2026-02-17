@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "https://image-vucz.onrender.com"
+      "/api": "https://image-vucz.onrender.com:10000"
     }
   }
 });

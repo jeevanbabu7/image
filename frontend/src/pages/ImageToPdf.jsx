@@ -1,20 +1,17 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
 import PreviewBox from "../components/PreviewBox.jsx";
-import { downloadFile, imageToPdf, unlockFile } from "../services/api.js";
+import { imageToPdf } from "../services/api.js";
 import { downloadBlob, formatBytes } from "../utils/format.js";
 
 function ImageToPdf() {
   const [files, setFiles] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState("");
-  const [token, setToken] = useState("");
 
   const resetResult = () => {
     setResult(null);
-    setToken("");
     setError("");
   };
 
@@ -27,49 +24,24 @@ function ImageToPdf() {
 
     setLoading(true);
     setError("");
-    setToken("");
 
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append("images", file));
 
-      const data = await imageToPdf(formData);
-      setResult(data);
+      // OPTIMIZED: Now receives blob directly
+      const { blob, filename } = await imageToPdf(formData);
+      
+      // Auto-download immediately
+      downloadBlob(blob, filename || "images.pdf");
+      
+      setResult({ size: blob.size, filename });
+      toast.success("PDF created and downloaded!");
     } catch (err) {
       const message = err.message || "PDF conversion failed.";
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!token) {
-      if (!result?.fileId) {
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      let nextToken = token;
-      if (!nextToken) {
-        setUnlocking(true);
-        const data = await unlockFile(result.fileId);
-        nextToken = data.token;
-        setToken(nextToken);
-      }
-      const { blob, filename } = await downloadFile(nextToken);
-      downloadBlob(blob, filename || "images.pdf");
-      toast.success("Download ready.");
-    } catch (err) {
-      const message = err.message || "Download failed.";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setUnlocking(false);
       setLoading(false);
     }
   };
@@ -115,22 +87,18 @@ function ImageToPdf() {
       </form>
 
       <div className="section full">
-        <PreviewBox title="3. Unlock and Download">
+        <PreviewBox title="3. Result">
           {error && <div className="status error">{error}</div>}
           {result && (
-            <div className="status">Output size: {formatBytes(result.size)}</div>
+            <div className="status success">
+              ✅ PDF size: {formatBytes(result.size)}
+              <br />
+              <span className="helper">File downloaded automatically!</span>
+            </div>
           )}
-          {result && (
-            <div className="inline-grid">
-              <button
-                className="button"
-                type="button"
-                disabled={loading || unlocking}
-                onClick={handleDownload}
-              >
-                {loading || unlocking ? "Preparing..." : "Download"}
-              </button>
-              <span className="helper">Download is ready immediately.</span>
+          {!result && !error && (
+            <div className="status">
+              Create your PDF and it will download automatically.
             </div>
           )}
         </PreviewBox>

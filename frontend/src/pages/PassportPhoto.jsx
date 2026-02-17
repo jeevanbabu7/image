@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import PreviewBox from "../components/PreviewBox.jsx";
-import { createPassport, downloadFile, unlockFile } from "../services/api.js";
+import { createPassport } from "../services/api.js";
 import { downloadBlob, formatBytes } from "../utils/format.js";
 
 function PassportPhoto() {
@@ -12,9 +12,7 @@ function PassportPhoto() {
   const [targetKB, setTargetKB] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState("");
-  const [token, setToken] = useState("");
 
   useEffect(() => {
     if (!file) {
@@ -29,7 +27,6 @@ function PassportPhoto() {
 
   const resetResult = () => {
     setResult(null);
-    setToken("");
     setError("");
   };
 
@@ -42,7 +39,6 @@ function PassportPhoto() {
 
     setLoading(true);
     setError("");
-    setToken("");
 
     try {
       const formData = new FormData();
@@ -53,43 +49,19 @@ function PassportPhoto() {
         formData.append("targetKB", String(targetKB));
       }
 
-      const data = await createPassport(formData);
-      setResult(data);
+      // OPTIMIZED: Now receives blob directly
+      const { blob, filename } = await createPassport(formData);
+      
+      // Auto-download immediately
+      downloadBlob(blob, filename || "passport-photo.jpg");
+      
+      setResult({ size: blob.size, filename });
+      toast.success("Passport photo created and downloaded!");
     } catch (err) {
       const message = err.message || "Failed to process image.";
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!token) {
-      if (!result?.fileId) {
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      let nextToken = token;
-      if (!nextToken) {
-        setUnlocking(true);
-        const data = await unlockFile(result.fileId);
-        nextToken = data.token;
-        setToken(nextToken);
-      }
-      const { blob, filename } = await downloadFile(nextToken);
-      downloadBlob(blob, filename || "passport-photo.jpg");
-      toast.success("Download ready.");
-    } catch (err) {
-      const message = err.message || "Download failed.";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setUnlocking(false);
       setLoading(false);
     }
   };
@@ -150,24 +122,18 @@ function PassportPhoto() {
       </form>
 
       <div className="section full">
-        <PreviewBox title="3. Unlock and Download">
+        <PreviewBox title="3. Result">
           {error && <div className="status error">{error}</div>}
           {result && (
-            <div className="status">
-              Output size: {formatBytes(result.size)} | {result.mimeType}
+            <div className="status success">
+              ✅ Output size: {formatBytes(result.size)}
+              <br />
+              <span className="helper">File downloaded automatically!</span>
             </div>
           )}
-          {result && (
-            <div className="inline-grid">
-              <button
-                className="button"
-                type="button"
-                disabled={loading || unlocking}
-                onClick={handleDownload}
-              >
-                {loading || unlocking ? "Preparing..." : "Download"}
-              </button>
-              <span className="helper">Download is ready immediately.</span>
+          {!result && !error && (
+            <div className="status">
+              Create your passport photo and it will download automatically.
             </div>
           )}
         </PreviewBox>

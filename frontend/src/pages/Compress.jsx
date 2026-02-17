@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import PreviewBox from "../components/PreviewBox.jsx";
-import { compressImage, downloadFile, unlockFile } from "../services/api.js";
+import { compressImage } from "../services/api.js";
 import { downloadBlob, formatBytes } from "../utils/format.js";
 
 function Compress() {
@@ -10,9 +10,7 @@ function Compress() {
   const [quality, setQuality] = useState(70);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState("");
-  const [token, setToken] = useState("");
 
   useEffect(() => {
     if (!file) {
@@ -27,7 +25,6 @@ function Compress() {
 
   const resetResult = () => {
     setResult(null);
-    setToken("");
     setError("");
   };
 
@@ -40,50 +37,25 @@ function Compress() {
 
     setLoading(true);
     setError("");
-    setToken("");
 
     try {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("quality", String(quality));
 
-      const data = await compressImage(formData);
-      setResult(data);
+      // OPTIMIZED: Now receives blob directly
+      const { blob, filename } = await compressImage(formData);
+      
+      // Auto-download immediately
+      downloadBlob(blob, filename || "compressed.jpg");
+      
+      setResult({ size: blob.size, filename });
+      toast.success("Image compressed and downloaded!");
     } catch (err) {
       const message = err.message || "Compression failed.";
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!token) {
-      if (!result?.fileId) {
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      let nextToken = token;
-      if (!nextToken) {
-        setUnlocking(true);
-        const data = await unlockFile(result.fileId);
-        nextToken = data.token;
-        setToken(nextToken);
-      }
-      const { blob, filename } = await downloadFile(nextToken);
-      downloadBlob(blob, filename || "compressed.jpg");
-      toast.success("Download ready.");
-    } catch (err) {
-      const message = err.message || "Download failed.";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setUnlocking(false);
       setLoading(false);
     }
   };
@@ -127,24 +99,18 @@ function Compress() {
       </form>
 
       <div className="section full">
-        <PreviewBox title="3. Unlock and Download">
+        <PreviewBox title="3. Result">
           {error && <div className="status error">{error}</div>}
           {result && (
-            <div className="status">
-              Original: {formatBytes(file?.size)} | Compressed: {formatBytes(result.size)}
+            <div className="status success">
+              ✅ Original: {formatBytes(file?.size)} | Compressed: {formatBytes(result.size)}
+              <br />
+              <span className="helper">File downloaded automatically!</span>
             </div>
           )}
-          {result && (
-            <div className="inline-grid">
-              <button
-                className="button"
-                type="button"
-                disabled={loading || unlocking}
-                onClick={handleDownload}
-              >
-                {loading || unlocking ? "Preparing..." : "Download"}
-              </button>
-              <span className="helper">Download is ready immediately.</span>
+          {!result && !error && (
+            <div className="status">
+              Compress your image and it will download automatically.
             </div>
           )}
         </PreviewBox>

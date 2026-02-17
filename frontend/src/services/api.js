@@ -23,6 +23,22 @@ async function postForm(endpoint, formData) {
   return response.json();
 }
 
+// New function for binary file responses
+async function postFormBinary(endpoint, formData) {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  const blob = await response.blob();
+  const filename = parseFilename(response.headers.get("content-disposition"));
+  return { blob, filename };
+}
+
 async function postJson(endpoint, payload) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method: "POST",
@@ -50,20 +66,24 @@ function parseFilename(headerValue) {
   return match[1].replace(/UTF-8''/i, "").replace(/"/g, "").trim();
 }
 
+// OPTIMIZED: Now returns blob directly (no fileId)
 export async function createPassport(formData) {
-  return postForm("/passport", formData);
+  return postFormBinary("/passport", formData);
 }
 
+// OPTIMIZED: Now returns blob directly (no fileId)
 export async function compressImage(formData) {
-  return postForm("/compress", formData);
+  return postFormBinary("/compress", formData);
 }
 
+// OPTIMIZED: Now returns blob directly (no fileId)
 export async function resizeImage(formData) {
-  return postForm("/resize", formData);
+  return postFormBinary("/resize", formData);
 }
 
+// OPTIMIZED: Now returns blob directly (no fileId)
 export async function imageToPdf(formData) {
-  return postForm("/image-to-pdf", formData);
+  return postFormBinary("/image-to-pdf", formData);
 }
 
 export async function unlockFile(fileId) {
