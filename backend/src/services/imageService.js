@@ -91,8 +91,65 @@ async function resizeImage(inputPath, { width, height, keepAspect, targetKB, qua
   return { outputPath, mimeType, extension };
 }
 
+// Buffer-based methods (no disk I/O) - OPTIMIZED for speed
+async function compressImageBuffer(inputPath, { quality, mimeType }) {
+  const buffer = mimeType === "image/png"
+    ? await sharp(inputPath).png({ quality }).toBuffer()
+    : await sharp(inputPath).jpeg({ quality }).toBuffer();
+  
+  return { buffer, mimeType, extension: mimeType === "image/png" ? ".png" : ".jpg" };
+}
+
+async function resizeImageBuffer(inputPath, { width, height, keepAspect, targetKB, quality, mimeType }) {
+  const resizeOptions = {
+    width: width || null,
+    height: height || null,
+    fit: keepAspect ? "inside" : "fill"
+  };
+
+  const base = sharp(inputPath).resize(resizeOptions);
+
+  if (targetKB) {
+    const buffer = await base.toBuffer();
+    const outputBuffer = await encodeJpegWithTarget(buffer, { quality, targetKB });
+    return { buffer: outputBuffer, mimeType: "image/jpeg", extension: ".jpg" };
+  }
+
+  const buffer = mimeType === "image/png"
+    ? await base.png({ quality }).toBuffer()
+    : await base.jpeg({ quality }).toBuffer();
+  
+  return { buffer, mimeType, extension: mimeType === "image/png" ? ".png" : ".jpg" };
+}
+
+async function createPassportPhotoBuffer(inputPath, { preset, quality, targetKB }) {
+  const size = PRESETS[preset];
+  if (!size) {
+    const error = new Error("Invalid preset");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const baseBuffer = await sharp(inputPath)
+    .resize({
+      width: size.width,
+      height: size.height,
+      fit: "cover",
+      position: "centre",
+      background: "#ffffff"
+    })
+    .flatten({ background: "#ffffff" })
+    .toBuffer();
+
+  const outputBuffer = await encodeJpegWithTarget(baseBuffer, { quality, targetKB });
+  return { buffer: outputBuffer, mimeType: "image/jpeg", extension: ".jpg" };
+}
+
 module.exports = {
   createPassportPhoto,
   compressImage,
-  resizeImage
+  resizeImage,
+  compressImageBuffer,
+  resizeImageBuffer,
+  createPassportPhotoBuffer
 };

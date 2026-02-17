@@ -1,6 +1,5 @@
-const { resizeImage } = require("../services/imageService");
-const { addFileRecord } = require("../services/fileStore");
-const { getFileSize, safeUnlink } = require("../utils/fileUtils");
+const { resizeImageBuffer } = require("../services/imageService");
+const { safeUnlink } = require("../utils/fileUtils");
 
 async function resize(req, res, next) {
   try {
@@ -22,7 +21,7 @@ async function resize(req, res, next) {
       return res.status(400).json({ error: "Width, height, or targetKB is required" });
     }
 
-    const { outputPath, mimeType } = await resizeImage(req.file.path, {
+    const { buffer, mimeType } = await resizeImageBuffer(req.file.path, {
       width,
       height,
       keepAspect,
@@ -31,22 +30,17 @@ async function resize(req, res, next) {
       mimeType: req.file.mimetype
     });
 
+    // Clean up uploaded file immediately
     await safeUnlink(req.file.path);
 
-    const size = await getFileSize(outputPath);
-    const record = addFileRecord({
-      filePath: outputPath,
-      originalName: `resized-${Date.now()}${mimeType === "image/png" ? ".png" : ".jpg"}`,
-      mimeType,
-      size
-    });
-
-    return res.json({
-      fileId: record.fileId,
-      size: record.size,
-      mimeType: record.mimeType
-    });
+    // Send file directly without storing
+    const filename = `resized-${Date.now()}${mimeType === "image/png" ? ".png" : ".jpg"}`;
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
   } catch (error) {
+    await safeUnlink(req.file?.path);
     return next(error);
   }
 }

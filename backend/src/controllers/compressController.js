@@ -1,6 +1,5 @@
-const { compressImage } = require("../services/imageService");
-const { addFileRecord } = require("../services/fileStore");
-const { getFileSize, safeUnlink } = require("../utils/fileUtils");
+const { compressImageBuffer } = require("../services/imageService");
+const { safeUnlink } = require("../utils/fileUtils");
 
 async function compress(req, res, next) {
   try {
@@ -13,27 +12,23 @@ async function compress(req, res, next) {
       quality = 70;
     }
     quality = Math.min(90, Math.max(10, quality));
-    const { outputPath, mimeType } = await compressImage(req.file.path, {
+    
+    const { buffer, mimeType } = await compressImageBuffer(req.file.path, {
       quality,
       mimeType: req.file.mimetype
     });
 
+    // Clean up uploaded file immediately
     await safeUnlink(req.file.path);
 
-    const size = await getFileSize(outputPath);
-    const record = addFileRecord({
-      filePath: outputPath,
-      originalName: `compressed-${Date.now()}${mimeType === "image/png" ? ".png" : ".jpg"}`,
-      mimeType,
-      size
-    });
-
-    return res.json({
-      fileId: record.fileId,
-      size: record.size,
-      mimeType: record.mimeType
-    });
+    // Send file directly without storing
+    const filename = `compressed-${Date.now()}${mimeType === "image/png" ? ".png" : ".jpg"}`;
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
   } catch (error) {
+    await safeUnlink(req.file?.path);
     return next(error);
   }
 }

@@ -37,4 +37,37 @@ async function imagesToPdf(files) {
   return { outputPath, mimeType: "application/pdf", extension: ".pdf" };
 }
 
-module.exports = { imagesToPdf };
+// Buffer-based method (no disk I/O) - OPTIMIZED for speed
+async function imagesToPdfBuffer(files) {
+  const pdfDoc = await PDFDocument.create();
+
+  for (const file of files) {
+    const imageBytes = await sharp(file.path).toBuffer();
+    const metadata = await sharp(file.path).metadata();
+
+    const page = pdfDoc.addPage([metadata.width, metadata.height]);
+
+    if (file.mimetype === "image/png") {
+      const pngImage = await pdfDoc.embedPng(imageBytes);
+      page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width: metadata.width,
+        height: metadata.height
+      });
+    } else {
+      const jpgImage = await pdfDoc.embedJpg(imageBytes);
+      page.drawImage(jpgImage, {
+        x: 0,
+        y: 0,
+        width: metadata.width,
+        height: metadata.height
+      });
+    }
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return { buffer: Buffer.from(pdfBytes), mimeType: "application/pdf", extension: ".pdf" };
+}
+
+module.exports = { imagesToPdf, imagesToPdfBuffer };

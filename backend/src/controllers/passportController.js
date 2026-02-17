@@ -1,6 +1,5 @@
-const { createPassportPhoto } = require("../services/imageService");
-const { addFileRecord } = require("../services/fileStore");
-const { getFileSize, safeUnlink } = require("../utils/fileUtils");
+const { createPassportPhotoBuffer } = require("../services/imageService");
+const { safeUnlink } = require("../utils/fileUtils");
 
 async function createPassport(req, res, next) {
   try {
@@ -20,28 +19,23 @@ async function createPassport(req, res, next) {
     quality = Math.min(90, Math.max(10, quality));
     const targetKB = req.body.targetKB ? Number(req.body.targetKB) : null;
 
-    const { outputPath, mimeType } = await createPassportPhoto(req.file.path, {
+    const { buffer, mimeType } = await createPassportPhotoBuffer(req.file.path, {
       preset,
       quality,
       targetKB
     });
 
+    // Clean up uploaded file immediately
     await safeUnlink(req.file.path);
 
-    const size = await getFileSize(outputPath);
-    const record = addFileRecord({
-      filePath: outputPath,
-      originalName: `passport-${Date.now()}.jpg`,
-      mimeType,
-      size
-    });
-
-    return res.json({
-      fileId: record.fileId,
-      size: record.size,
-      mimeType: record.mimeType
-    });
+    // Send file directly without storing
+    const filename = `passport-${Date.now()}.jpg`;
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    return res.send(buffer);
   } catch (error) {
+    await safeUnlink(req.file?.path);
     return next(error);
   }
 }
